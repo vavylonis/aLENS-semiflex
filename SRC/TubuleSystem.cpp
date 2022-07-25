@@ -310,9 +310,110 @@ void TubuleSystem::step() {
             rodSystem.calcConStress();
             spdlog::debug("rodSystemStep");
         }
+        
+        
+         // step 5 add new sylinder if it is time to do so
+        if(rodSystem.getStepCount() % 100 == 0)
+        {
+            const auto &tubuleContainer = rodSystem.getContainer();
+            
+            std::vector <int> barbedEndGIDs = getBarbedEndGIDs();
+            //std::cout << barbedEndGIDs.size() << std::endl;
+            //exit(0);
+            
+            std::vector <Sylinder> newSylinders;
+            std::vector <Link> newLinks;
+            
+            for(int g = 0; g < barbedEndGIDs.size(); g++)
+            {
+                Sylinder currSylinder = tubuleContainer[barbedEndGIDs[g]];
+
+                double *newSylinderPos = currSylinder.pos;
+                
+                /*if(rodSystem.getStepCount() > 1000)
+                {
+                    std::cout << "step count: " << rodSystem.getStepCount() << std::endl;
+                    std::cout << "newSylinderPos: " << newSylinderPos[0] << std::endl;
+                    std::cout << "total num sylinders: " << (rodSystem.getContainer()).getNumberOfParticleGlobal() << std::endl;
+                    exit(0);
+                }*/
+                
+                double sylinderLength = 0.1;
+                Evec3 newSylinderDisp = ECmapq(currSylinder.orientation) * Evec3(0, 0, 1);
+                
+                newSylinderPos[0] += sylinderLength * newSylinderDisp[0];
+                newSylinderPos[1] += sylinderLength * newSylinderDisp[1];
+                newSylinderPos[2] += sylinderLength * newSylinderDisp[2];
+                
+                Sylinder newSylinder = Sylinder(rodSystem.getMaxGid().second, currSylinder.radius, currSylinder.radiusCollision, currSylinder.length, currSylinder.lengthCollision, newSylinderPos, currSylinder.orientation);
+                
+                newSylinders.push_back(newSylinder);
+                
+                /*Link newLink;
+                newLink.prev = currSylinder.gid;
+                newLink.next = newGIDs[0];
+                newLinks.push_back(newLink);*/
+                
+            }
+            
+             // add new sylinders
+            std::vector <int> newGIDs = rodSystem.addNewSylinder(newSylinders);
+            
+            // add new links
+            for(int i = 0; i < newGIDs.size(); i++)
+            {
+                Link newLink;
+                newLink.prev = tubuleContainer[barbedEndGIDs[i]].gid;
+                newLink.next = newGIDs[i];
+                
+                newLinks.push_back(newLink); 
+            }
+            rodSystem.addNewLink(newLinks);
+        }
     }
 
     rodSystem.printTimingSummary();
+}
+
+// determines barbed end (larger index gid) based on linear links
+std::vector <int> TubuleSystem::getBarbedEndGIDs()
+{
+    std::vector <int> barbedEnds;
+    
+    std::unordered_set <int> alreadyConsideredIDs;
+    
+    const auto &linkMap = rodSystem.getLinkMap();
+    
+    for(auto it : linkMap)
+    {
+        int firstGID = it.first;
+        int secondGID = it.second;
+        
+        //if firstGID has not been considered before then follow the links to the barbed end
+        if(alreadyConsideredIDs.find(firstGID) == alreadyConsideredIDs.end())
+        {
+            //std::cout << "firstGID: " << firstGID << std::endl;
+            alreadyConsideredIDs.insert(firstGID);
+            alreadyConsideredIDs.insert(secondGID);
+            
+            auto next_it = linkMap.find(secondGID);
+            while(next_it != linkMap.end())
+            {
+                secondGID = next_it->second;
+                alreadyConsideredIDs.insert(secondGID);
+                next_it = linkMap.find(secondGID);
+            }
+            
+            //if(alreadyConsideredIDs.find(secondGID) == alreadyConsideredIDs.end())
+            if(std::find(barbedEnds.begin(), barbedEnds.end(), secondGID) == barbedEnds.end())
+            {
+                //std::cout << "secondGID: " << secondGID << std::endl;
+                barbedEnds.push_back(secondGID);
+            }
+        }
+    }
+    
+    return barbedEnds;
 }
 
 void TubuleSystem::calcBindInteraction() {
