@@ -228,6 +228,12 @@ class TubuleSystem {
      * 
      */
     void readProteinVTK(const std::string &pvtpFileName);
+    
+    /**
+     * @brief get GIDs of barbed ends (larger index gid) based on linear links
+     * 
+     */
+    std::vector <int> getBarbedEndGIDs();
 };
 
 #endif
