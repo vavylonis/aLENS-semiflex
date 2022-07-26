@@ -30,6 +30,8 @@
 #include <mpi.h>
 #include <omp.h>
 
+#include <unordered_set>
+
 /**
  * @brief Mixed system of microtubule and protein
  *
