@@ -338,7 +338,7 @@ void TubuleSystem::step() {
                     exit(0);
                 }*/
                 
-                double sylinderLength = 0.1;
+                double sylinderLength = 0.2;
                 Evec3 newSylinderDisp = ECmapq(currSylinder.orientation) * Evec3(0, 0, 1);
                 
                 newSylinderPos[0] += sylinderLength * newSylinderDisp[0];
