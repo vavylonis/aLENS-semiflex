@@ -20,6 +20,7 @@
 
 #include <unordered_map>
 
+
 TubuleSystem::TubuleSystem(const std::string &configFileSystem,
                            const std::string &configFileProtein,
                            const std::string &restartFile, //
@@ -230,7 +231,7 @@ void TubuleSystem::thermEquilStep(double t) {
 void TubuleSystem::step() {
     const double dt = rodSystem.runConfig.dt;
     spdlog::warn("CurrentTime {:8g}", rodSystem.getStepCount() * dt);
-
+    
     using Teuchos::Time;
     using Teuchos::TimeMonitor;
     TimeMonitor::zeroOutTimers();
@@ -311,67 +312,75 @@ void TubuleSystem::step() {
             spdlog::debug("rodSystemStep");
         }
         
-        
+     
          // step 5 add new sylinder if it is time to do so
-        if(rodSystem.getStepCount() % 100 == 0)
-        {
+	// In this specific implementation sylinder addition slows down over as in Adeli Koudehi et al, assuming 2.2 nm actin filament seeds and 5 uM initial monomer concentration  
+	double tAdd = 0;
+	do {
+	  tAdd += 1.48*exp(0.022*tAdd);
+	    }
+	while((rodSystem.getStepCount()-1)*rodSystem.runConfig.dt > tAdd);
+
+	    //        if(rodSystem.getStepCount() % 100 == 0)
+        if(rodSystem.getStepCount()*rodSystem.runConfig.dt > tAdd)
+	  {
             const auto &tubuleContainer = rodSystem.getContainer();
             
             std::vector <int> barbedEndGIDs = getBarbedEndGIDs();
-            //std::cout << barbedEndGIDs.size() << std::endl;
-            //exit(0);
             
-            std::vector <Sylinder> newSylinders;
-            std::vector <Link> newLinks;
+            int prior_max_gid = rodSystem.getMaxGid().second;
             
-            for(int g = 0; g < barbedEndGIDs.size(); g++)
+            //if(rank == 0)
             {
-                Sylinder currSylinder = tubuleContainer[barbedEndGIDs[g]];
-
-                double *newSylinderPos = currSylinder.pos;
+                std::vector <Sylinder> newSylinders;
+                std::vector <int> priorBarbedGIDS;
+                std::vector <Link> newLinks;
                 
-                /*if(rodSystem.getStepCount() > 1000)
+                for(int i = 0; i < tubuleContainer.getNumberOfParticleLocal(); i++)
                 {
-                    std::cout << "step count: " << rodSystem.getStepCount() << std::endl;
-                    std::cout << "newSylinderPos: " << newSylinderPos[0] << std::endl;
-                    std::cout << "total num sylinders: " << (rodSystem.getContainer()).getNumberOfParticleGlobal() << std::endl;
-                    exit(0);
-                }*/
+                    for(int g = 0; g < barbedEndGIDs.size(); g++)
+                    {
+                        if(tubuleContainer[i].gid == barbedEndGIDs[g])
+                        {
+                            Sylinder currSylinder = tubuleContainer[i];
+                            
+                            double *newSylinderPos = currSylinder.pos;
+                        
+                        
+                            double sylinderLength = 0.2;
+                            //std::cout << "RANK: " << tubuleContainer[i].rank << " " << rank << " " << g << " " << barbedEndGIDs[g] << std::endl;
+                            Evec3 newSylinderDisp = ECmapq(currSylinder.orientation) * Evec3(0, 0, 1);
+                            
+                            newSylinderPos[0] += sylinderLength * newSylinderDisp[0];
+                            newSylinderPos[1] += sylinderLength * newSylinderDisp[1];
+                            newSylinderPos[2] += sylinderLength * newSylinderDisp[2];
+                            
+                            Sylinder newSylinder = Sylinder(prior_max_gid, currSylinder.radius, currSylinder.radiusCollision, currSylinder.length, currSylinder.lengthCollision, newSylinderPos, currSylinder.orientation);
+                        
+                            priorBarbedGIDS.push_back(barbedEndGIDs[g]);
+                            newSylinders.push_back(newSylinder);
+                        }
+                    }
+                }
                 
-                double sylinderLength = 0.2;
-                Evec3 newSylinderDisp = ECmapq(currSylinder.orientation) * Evec3(0, 0, 1);
+                 // add new sylinders
+                std::vector <int> newGIDs = rodSystem.addNewSylinder(newSylinders);
                 
-                newSylinderPos[0] += sylinderLength * newSylinderDisp[0];
-                newSylinderPos[1] += sylinderLength * newSylinderDisp[1];
-                newSylinderPos[2] += sylinderLength * newSylinderDisp[2];
-                
-                Sylinder newSylinder = Sylinder(rodSystem.getMaxGid().second, currSylinder.radius, currSylinder.radiusCollision, currSylinder.length, currSylinder.lengthCollision, newSylinderPos, currSylinder.orientation);
-                
-                newSylinders.push_back(newSylinder);
-                
-                /*Link newLink;
-                newLink.prev = currSylinder.gid;
-                newLink.next = newGIDs[0];
-                newLinks.push_back(newLink);*/
-                
+                // add new links
+                for(int i = 0; i < newGIDs.size(); i++)
+                {
+                    Link newLink;
+                    
+                    newLink.prev = priorBarbedGIDS[i];
+                    newLink.next = newGIDs[i];
+                    
+                    newLinks.push_back(newLink); 
+                }
+                rodSystem.addNewLink(newLinks);
             }
-            
-             // add new sylinders
-            std::vector <int> newGIDs = rodSystem.addNewSylinder(newSylinders);
-            
-            // add new links
-            for(int i = 0; i < newGIDs.size(); i++)
-            {
-                Link newLink;
-                newLink.prev = tubuleContainer[barbedEndGIDs[i]].gid;
-                newLink.next = newGIDs[i];
-                
-                newLinks.push_back(newLink); 
-            }
-            rodSystem.addNewLink(newLinks);
-        }
-    }
-
+	  }
+	}
+  
     rodSystem.printTimingSummary();
 }
 
@@ -392,7 +401,6 @@ std::vector <int> TubuleSystem::getBarbedEndGIDs()
         //if firstGID has not been considered before then follow the links to the barbed end
         if(alreadyConsideredIDs.find(firstGID) == alreadyConsideredIDs.end())
         {
-            //std::cout << "firstGID: " << firstGID << std::endl;
             alreadyConsideredIDs.insert(firstGID);
             alreadyConsideredIDs.insert(secondGID);
             
@@ -407,7 +415,6 @@ std::vector <int> TubuleSystem::getBarbedEndGIDs()
             //if(alreadyConsideredIDs.find(secondGID) == alreadyConsideredIDs.end())
             if(std::find(barbedEnds.begin(), barbedEnds.end(), secondGID) == barbedEnds.end())
             {
-                //std::cout << "secondGID: " << secondGID << std::endl;
                 barbedEnds.push_back(secondGID);
             }
         }
