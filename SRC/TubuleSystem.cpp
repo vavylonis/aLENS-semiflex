@@ -420,6 +420,17 @@ std::vector <int> TubuleSystem::getBarbedEndGIDs()
         }
     }
     
+    // now loop through all sylinders and confirm that they are in alreadyConsideredIDs, if not they are single sylinders and should be added to barbedEnds
+    const auto &tubuleContainer = rodSystem.getContainer();
+    
+    for(int i = 0; i < tubuleContainer.getNumberOfParticleLocal(); i++)
+    {
+        if(alreadyConsideredIDs.find(tubuleContainer[i].gid) == alreadyConsideredIDs.end())
+        {
+            barbedEnds.push_back(tubuleContainer[i].gid);
+        }
+    }
+    
     return barbedEnds;
 }
 
