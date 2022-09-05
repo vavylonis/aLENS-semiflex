@@ -315,7 +315,8 @@ void TubuleSystem::step() {
      
          // step 5 add new sylinder if it is time to do so
 	// In this specific implementation sylinder addition slows down over as in Adeli Koudehi et al, assuming 2.2 nm actin filament seeds and 5 uM initial monomer concentration  
-	double tAdd = 0;
+	double tAdd = 0; //use to activate elongation of group 0 sylinders
+	//double tAdd=1e10; //deactivate elongation
 	do {
 	  tAdd += 1.48*exp(0.022*tAdd);
 	    }
@@ -354,9 +355,12 @@ void TubuleSystem::step() {
                             newSylinderPos[0] += sylinderLength * newSylinderDisp[0];
                             newSylinderPos[1] += sylinderLength * newSylinderDisp[1];
                             newSylinderPos[2] += sylinderLength * newSylinderDisp[2];
-                            
+			    
                             Sylinder newSylinder = Sylinder(prior_max_gid, currSylinder.radius, currSylinder.radiusCollision, currSylinder.length, currSylinder.lengthCollision, newSylinderPos, currSylinder.orientation);
-                        
+
+			    // make new sylider group 0, the only group assumed to be able to elongate
+			    newSylinder.group=0;
+
                             priorBarbedGIDS.push_back(barbedEndGIDs[g]);
                             newSylinders.push_back(newSylinder);
                         }
@@ -421,11 +425,12 @@ std::vector <int> TubuleSystem::getBarbedEndGIDs()
     }
     
     // now loop through all sylinders and confirm that they are in alreadyConsideredIDs, if not they are single sylinders and should be added to barbedEnds
+    // DV: but only do this for sylinders that belong to group 0, which are the only ones to be growing
     const auto &tubuleContainer = rodSystem.getContainer();
     
     for(int i = 0; i < tubuleContainer.getNumberOfParticleLocal(); i++)
     {
-        if(alreadyConsideredIDs.find(tubuleContainer[i].gid) == alreadyConsideredIDs.end())
+      if((alreadyConsideredIDs.find(tubuleContainer[i].gid) == alreadyConsideredIDs.end()) && (tubuleContainer[i].group == 0))
         {
             barbedEnds.push_back(tubuleContainer[i].gid);
         }
