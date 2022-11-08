@@ -313,13 +313,19 @@ void TubuleSystem::step() {
         }
         
      
+
          // step 5 add new sylinder if it is time to do so
-	// In this specific implementation sylinder addition slows down over as in Adeli Koudehi et al, assuming 2.2 nm actin filament seeds and 5 uM initial monomer concentration  
-	double tAdd = 0;
-	do {
-	  tAdd += 1.48*exp(0.022*tAdd);
-	    }
-	while((rodSystem.getStepCount()-1)*rodSystem.runConfig.dt > tAdd);
+        // In this specific implementation sylinder addition slows down over as in Adeli Koudehi et al, assuming an i\
+nitial concentration of actin filament seeds and an initial monomer concentration
+        double tAdd = 0; //use to activate elongation of group 0 sylinders
+        //double tAdd=1e10; //deactivate elongation
+        do {
+          // Formula: Delta t = (0.2 um x 370/ k+ c0) * e^(F0 kt t)
+          // 2.2 nM seeds, 5 uM actin:  tAdd += 1.48*exp(0.022*tAdd);
+          // 3 nM seeds, 2 uM actin:  tAdd += 3.7*exp(0.03*tAdd);
+          tAdd += 3.7*exp(0.03*tAdd);
+            }
+        while((rodSystem.getStepCount()-1)*rodSystem.runConfig.dt > tAdd);
 
 	    //        if(rodSystem.getStepCount() % 100 == 0)
         if(rodSystem.getStepCount()*rodSystem.runConfig.dt > tAdd)
